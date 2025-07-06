@@ -71,7 +71,7 @@ After installation, proceed with the deployment script:
 3.  Inside the `SillyTavern\plugins\qiros-server` folder, create a new file named `.env`.
 4.  Enter the following content into the `.env` file, replacing the placeholders with your own ID and Secret:
 
-```
+```env
 GITHUB_CLIENT_ID=Your_Client_ID_here
 GITHUB_CLIENT_SECRET=Your_Client_Secret_here
 ```
