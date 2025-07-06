@@ -1,0 +1,9 @@
+{
+  "display_name": "齐物",
+  "version": "1.0.0",
+  "author": "qwerty",
+  "description": "使用Git进行协作式角色创建。",
+  "html": "settings.html",
+  "js": "index.js",
+  "css": "style.css"
+}
