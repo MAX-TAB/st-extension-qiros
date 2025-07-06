@@ -527,6 +527,11 @@ async function onPushClick() {
     }
     toastr.success(translations[currentLang]["push_successful"]);
     commitMessageInput.val("");
+
+    // 如果历史记录视图是打开的，则刷新它
+    if (historyDetailsSection.is(":visible")) {
+      loadHistory();
+    }
   } catch (error) {
     console.error("推送角色时出错:", error);
     toastr.error(
@@ -809,14 +814,58 @@ async function proceedWithRevert() {
       throw new Error(
         result.details || translations[currentLang]["revert_failed"]
       );
-    toastr.success(
-      result.message + " " + translations[currentLang]["pull_to_see_changes"]
-    );
-    revertButton.prop("disabled", true);
-    selectedCommitSha = null;
-    $(".history-item.selected").removeClass("selected");
-    historyDiffContainer.hide();
-    loadHistory();
+
+    toastr.success(result.message);
+
+    // 从后端获取回滚后的数据
+    const { cardPngContent } = result.data;
+
+    // 核心逻辑：只使用 card.png 来更新角色
+    if (cardPngContent) {
+      const byteCharacters = atob(cardPngContent);
+      const byteNumbers = new Array(byteCharacters.length);
+      for (let i = 0; i < byteCharacters.length; i++) {
+        byteNumbers[i] = byteCharacters.charCodeAt(i);
+      }
+      const byteArray = new Uint8Array(byteNumbers);
+      const blob = new Blob([byteArray], { type: "image/png" });
+
+      const formData = new FormData();
+      formData.append("avatar", blob, "card.png");
+      formData.append("file_type", "png");
+      // 使用 preserved_name 确保覆盖的是当前角色
+      formData.append(
+        "preserved_name",
+        characters[this_chid].avatar.split("/").pop()
+      );
+
+      const importResponse = await fetch("/api/characters/import", {
+        method: "POST",
+        body: formData,
+        headers: {
+          "X-CSRF-Token": csrfToken,
+        },
+      });
+
+      if (!importResponse.ok) {
+        const errorText = await importResponse.text();
+        throw new Error(`SillyTavern 导入失败: ${errorText}`);
+      }
+
+      // 成功后刷新页面
+      toastr.success(translations[currentLang]["revert_successful_reloading"]);
+      setTimeout(() => window.location.reload(), 2000);
+    } else {
+      // 如果由于某种原因没有card.png，则只刷新历史记录
+      toastr.info(
+        "JSON data has been reverted. No card found for this version. Please pull to see changes."
+      );
+      revertButton.prop("disabled", true);
+      selectedCommitSha = null;
+      $(".history-item.selected").removeClass("selected");
+      historyDiffContainer.hide();
+      loadHistory();
+    }
   } catch (error) {
     console.error("回滚版本时出错:", error);
     toastr.error(
