@@ -70,10 +70,13 @@ After installation, proceed with the deployment script:
 2.  Copy and save the **Client ID** and the newly generated **Client secret**.
 3.  Inside the `SillyTavern\plugins\qiros-server` folder, create a new file named `.env`.
 4.  Enter the following content into the `.env` file, replacing the placeholders with your own ID and Secret:
-    `    GITHUB_CLIENT_ID=Your_Client_ID_here
-    GITHUB_CLIENT_SECRET=Your_Client_Secret_here
-   `
-    The backend configuration is now complete.
+
+```
+GITHUB_CLIENT_ID=Your_Client_ID_here
+GITHUB_CLIENT_SECRET=Your_Client_Secret_here
+```
+
+The backend configuration is now complete.
 
 **Step 5: Install the Frontend Plugin**
 
