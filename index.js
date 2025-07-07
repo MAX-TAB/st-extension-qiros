@@ -974,7 +974,15 @@ async function proceedWithRelease(
         "Content-Type": "application/json",
         "X-CSRF-Token": csrfToken,
       },
-      body: JSON.stringify({ repoUrl, version, title, notes, targetBranch }),
+      body: JSON.stringify({
+        repoUrl,
+        version,
+        title,
+        notes,
+        targetBranch,
+        characterData: filterCharacterData(characters[this_chid]),
+        characterAvatar: characters[this_chid].avatar.split("/").pop(),
+      }),
     });
     const result = await response.json();
     if (!response.ok)
@@ -1091,33 +1099,9 @@ async function onNewBranchClick() {
   }
 }
 
-async function onForkClick() {
-  const extensionData = currentQirosData;
-  let upstreamUrl = extensionData?.upstreamUrl;
-
-  if (!upstreamUrl) {
-    // 如果没有上游仓库，则弹窗让用户输入
-    const inputUrl = await Popup.show.input(
-      translations[currentLang]["enter_upstream_repo_url"],
-      translations[currentLang]["upstream_repo_url_placeholder"],
-      ""
-    );
-    if (inputUrl === null) return; // 用户取消
-    upstreamUrl = inputUrl.trim();
-    if (
-      !upstreamUrl.match(
-        /^https:\/\/github\.com\/[a-zA-Z0-9-_\.]+\/[a-zA-Z0-9-_\.]+(\.git)?$/i
-      )
-    ) {
-      toastr.warning(translations[currentLang]["invalid_repo_url"]);
-      return;
-    }
-    // 临时保存上游URL，以便后续操作
-    await saveExtensionData({ upstreamUrl: upstreamUrl });
-  }
-
+async function proceedWithFork(upstreamUrl) {
   const confirmation = await Popup.show.confirm(
-    translations[currentLang]["fork_confirm_text"]
+    `${translations[currentLang]["fork_confirm_text"]}<br><br><b>URL:</b> ${upstreamUrl}`
   );
   if (confirmation !== POPUP_RESULT.AFFIRMATIVE) return;
 
@@ -1140,7 +1124,7 @@ async function onForkClick() {
       );
 
     const forkUrl = result.details.clone_url;
-    await saveExtensionData({ forkUrl });
+    await saveExtensionData({ upstreamUrl, forkUrl }); // Also save upstreamUrl in case it was newly entered
     updateRepoView(currentQirosData);
     toastr.success(translations[currentLang]["fork_successful"]);
   } catch (error) {
@@ -1148,6 +1132,36 @@ async function onForkClick() {
     toastr.error(
       `${translations[currentLang]["fork_failed"]}: ${error.message}`
     );
+  }
+}
+
+async function onForkClick() {
+  const extensionData = currentQirosData;
+  const upstreamUrl = extensionData?.upstreamUrl;
+
+  if (upstreamUrl) {
+    // If URL exists, proceed directly
+    await proceedWithFork(upstreamUrl);
+  } else {
+    // If no upstream URL, prompt the user to input one
+    const inputUrl = await Popup.show.input(
+      translations[currentLang]["enter_upstream_repo_url"],
+      translations[currentLang]["upstream_repo_url_placeholder"],
+      ""
+    );
+    if (inputUrl === null) return; // User cancelled
+
+    const newUpstreamUrl = inputUrl.trim();
+    if (
+      !newUpstreamUrl.match(
+        /^https:\/\/github\.com\/[a-zA-Z0-9-_\.]+\/[a-zA-Z0-9-_\.]+(\.git)?$/i
+      )
+    ) {
+      toastr.warning(translations[currentLang]["invalid_repo_url"]);
+      return;
+    }
+    // Proceed with the newly entered URL
+    await proceedWithFork(newUpstreamUrl);
   }
 }
 
