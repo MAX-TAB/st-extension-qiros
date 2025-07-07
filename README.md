@@ -47,7 +47,7 @@
   3.  运行克隆命令: `git clone https://github.com/MAX-TAB/qiros-server.git`
 
 - **手动安装:**
-  1.  从 [GitHub 发布页面](https://github.com/MAX-TAB/qiros-server/releases) 下载最新的 `Source code (zip)`。
+  1.  在 [qiros-server 的 GitHub 页面](https://github.com/MAX-TAB/qiros-server) 点击 `Code` -> `Download ZIP`。
   2.  将解压后的文件夹移动到 `SillyTavern\plugins` 目录下。
 
 **第三步：获取 GitHub OAuth 密钥**
