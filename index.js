@@ -56,7 +56,8 @@ let loginView,
   currentUser = null,
   currentLang = "zh",
   langSelect,
-  currentQirosData = null;
+  currentQirosData = null,
+  lastCharIdForCheck = null;
 
 /**
  * =================================================================
@@ -151,7 +152,7 @@ function updateViewState(user) {
   }
 }
 
-function updateRepoView(extensionData) {
+async function updateRepoView(extensionData) {
   console.log(
     "[Qiros Debug] updateRepoView triggered. Received data:",
     JSON.parse(JSON.stringify(extensionData || {}))
@@ -220,7 +221,7 @@ function updateRepoView(extensionData) {
 
     // Show branch management and populate it.
     branchManagementContainer.show();
-    updateBranchView(branchUpdateUrl);
+    await updateBranchView(branchUpdateUrl);
     unlinkRepoButton.show();
 
     // Enable action buttons now that a repo is linked
@@ -263,7 +264,7 @@ function updateRepoView(extensionData) {
 /**
  * @description 核心刷新函数。在用户登录或切换角色时调用，读取角色数据并更新整个UI。
  */
-function refreshCharacterView() {
+async function refreshCharacterView() {
   console.log(
     `[Qiros Debug] refreshCharacterView triggered for character ID: ${this_chid}.`
   );
@@ -274,13 +275,13 @@ function refreshCharacterView() {
 
   if (this_chid === undefined || this_chid === null) {
     console.log("[Qiros Debug] No character selected. Clearing repo view.");
-    updateRepoView(null);
+    await updateRepoView(null);
     return;
   }
 
   console.log("[Qiros Debug] Character selected. Getting extension data.");
   currentQirosData = getExtensionData();
-  updateRepoView(currentQirosData);
+  await updateRepoView(currentQirosData);
 }
 
 async function updateBranchView(repoUrl) {
@@ -620,24 +621,25 @@ async function proceedWithPull(repoUrl, branch, characterAvatar) {
   }
 }
 
-async function onCheckUpdatesClick() {
+async function onCheckUpdatesClick(isSilent = false) {
   const character = characters[this_chid];
   if (!character) {
-    toastr.warning(translations[currentLang]["load_character_first"]);
+    if (!isSilent)
+      toastr.warning(translations[currentLang]["load_character_first"]);
     return;
   }
   const extensionData = currentQirosData;
   const repoUrl = extensionData?.upstreamUrl || extensionData?.repoUrl;
   if (!repoUrl) {
-    toastr.warning(translations[currentLang]["no_repo_linked"]);
+    if (!isSilent) toastr.warning(translations[currentLang]["no_repo_linked"]);
     return;
   }
   const branch = branchSelect.val();
   if (!branch) {
-    toastr.warning(translations[currentLang]["select_branch"]);
+    if (!isSilent) toastr.warning(translations[currentLang]["select_branch"]);
     return;
   }
-  toastr.info(translations[currentLang]["checking_for_updates"]);
+  if (!isSilent) toastr.info(translations[currentLang]["checking_for_updates"]);
   try {
     const csrfToken = await getCsrfToken();
     if (!csrfToken) return;
@@ -656,21 +658,27 @@ async function onCheckUpdatesClick() {
     const localSha = currentQirosData?.commitSha ?? "";
 
     if (localSha && remoteSha.startsWith(localSha)) {
-      toastr.success(translations[currentLang]["already_latest_version"]);
+      if (!isSilent) {
+        toastr.success(translations[currentLang]["already_latest_version"]);
+      }
     } else {
+      toastr.info(translations[currentLang]["new_version_found"]);
       toastr.info(
-        `${translations[currentLang]["new_version_found"]} <br><b>${
-          translations[currentLang]["remote"]
-        }:</b> ${remoteSha.substring(0, 7)} <br><b>${
-          translations[currentLang]["local"]
-        }:</b> ${localSha.substring(0, 7)}`
+        `${translations[currentLang]["remote"]}: ${remoteSha.substring(0, 7)}`
+      );
+      toastr.info(
+        `${translations[currentLang]["local"]}: ${
+          localSha ? localSha.substring(0, 7) : "N/A"
+        }`
       );
     }
   } catch (error) {
     console.error("检查更新时出错:", error);
-    toastr.error(
-      `${translations[currentLang]["update_check_failed"]}: ${error.message}`
-    );
+    if (!isSilent) {
+      toastr.error(
+        `${translations[currentLang]["update_check_failed"]}: ${error.message}`
+      );
+    }
   }
 }
 
@@ -1224,6 +1232,29 @@ async function onCreatePullRequestClick() {
  * 插件入口与初始化
  * =================================================================
  */
+async function handleChatChange() {
+  await refreshCharacterView();
+
+  if (this_chid && this_chid !== lastCharIdForCheck) {
+    lastCharIdForCheck = this_chid;
+
+    const extensionData = getExtensionData();
+    if (
+      extensionData &&
+      (extensionData.repoUrl || extensionData.upstreamUrl) &&
+      !checkUpdatesButton.prop("disabled")
+    ) {
+      console.log(
+        "[Qiros Debug] Auto checking for updates on character change."
+      );
+      await onCheckUpdatesClick(true); // Pass true for silent mode
+    }
+  } else if (!this_chid) {
+    // Reset if no character is selected
+    lastCharIdForCheck = null;
+  }
+}
+
 function onPanelShown() {
   loginView = $("#qiros-login-view");
   mainView = $("#qiros-main-view");
@@ -1263,7 +1294,7 @@ function onPanelShown() {
   $("#github-logout-button").on("click", onLogoutClick);
   associateRepoButton.on("click", onAssociateRepoClick);
   createRepoButton.on("click", onCreateRepoClick);
-  checkUpdatesButton.on("click", onCheckUpdatesClick);
+  checkUpdatesButton.on("click", () => onCheckUpdatesClick());
   pullButton.on("click", onPullClick);
   pushButton.on("click", onPushClick);
   historyButton.on("click", onHistoryButtonClick);
@@ -1274,7 +1305,7 @@ function onPanelShown() {
   createPrButton.on("click", onCreatePullRequestClick);
   unlinkRepoButton.on("click", onUnlinkRepoClick);
 
-  eventSource.on(event_types.CHAT_CHANGED, refreshCharacterView);
+  eventSource.on(event_types.CHAT_CHANGED, handleChatChange);
 
   (async () => {
     try {
