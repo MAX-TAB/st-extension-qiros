@@ -98,7 +98,8 @@ function setLanguage(lang) {
   document.querySelectorAll("[data-i18n-placeholder]").forEach((el) => {
     const key = el.getAttribute("data-i18n-placeholder");
     if (translations[lang] && translations[lang][key]) {
-      el.placeholder = translations[lang][key];
+      /** @type {HTMLInputElement} */ (el).placeholder =
+        translations[lang][key];
     }
   });
 }
@@ -593,6 +594,8 @@ async function proceedWithPull(repoUrl, branch, characterAvatar) {
   try {
     const csrfToken = await getCsrfToken();
     if (!csrfToken) return;
+    console.log("即将发起请求，检查 branch 变量的当前值:", branch);
+
     const params = new URLSearchParams({
       repoUrl,
       branch,
@@ -789,14 +792,19 @@ async function onRevertClick() {
 
 async function proceedWithRevert() {
   toastr.info(translations[currentLang]["reverting_version"]);
+  const character = characters[this_chid];
+  const characterAvatar = character.avatar;
+
   try {
     const csrfToken = await getCsrfToken();
     if (!csrfToken) return;
+
     const extensionData = currentQirosData;
     const repoUrl =
       extensionData?.forkUrl ||
       extensionData?.upstreamUrl ||
       extensionData?.repoUrl;
+
     const response = await fetch("/api/plugins/qiros-server/revert_version", {
       method: "POST",
       headers: {
@@ -805,67 +813,20 @@ async function proceedWithRevert() {
       },
       body: JSON.stringify({
         repoUrl: repoUrl,
-        branch: branchSelect.val(),
         targetCommitSha: selectedCommitSha,
+        characterAvatar: characterAvatar.split("/").pop(),
       }),
     });
+
     const result = await response.json();
-    if (!response.ok)
+    if (!response.ok) {
       throw new Error(
         result.details || translations[currentLang]["revert_failed"]
       );
+    }
 
     toastr.success(result.message);
-
-    // 从后端获取回滚后的数据
-    const { cardPngContent } = result.data;
-
-    // 核心逻辑：只使用 card.png 来更新角色
-    if (cardPngContent) {
-      const byteCharacters = atob(cardPngContent);
-      const byteNumbers = new Array(byteCharacters.length);
-      for (let i = 0; i < byteCharacters.length; i++) {
-        byteNumbers[i] = byteCharacters.charCodeAt(i);
-      }
-      const byteArray = new Uint8Array(byteNumbers);
-      const blob = new Blob([byteArray], { type: "image/png" });
-
-      const formData = new FormData();
-      formData.append("avatar", blob, "card.png");
-      formData.append("file_type", "png");
-      // 使用 preserved_name 确保覆盖的是当前角色
-      formData.append(
-        "preserved_name",
-        characters[this_chid].avatar.split("/").pop()
-      );
-
-      const importResponse = await fetch("/api/characters/import", {
-        method: "POST",
-        body: formData,
-        headers: {
-          "X-CSRF-Token": csrfToken,
-        },
-      });
-
-      if (!importResponse.ok) {
-        const errorText = await importResponse.text();
-        throw new Error(`SillyTavern 导入失败: ${errorText}`);
-      }
-
-      // 成功后刷新页面
-      toastr.success(translations[currentLang]["revert_successful_reloading"]);
-      setTimeout(() => window.location.reload(), 2000);
-    } else {
-      // 如果由于某种原因没有card.png，则只刷新历史记录
-      toastr.info(
-        "JSON data has been reverted. No card found for this version. Please pull to see changes."
-      );
-      revertButton.prop("disabled", true);
-      selectedCommitSha = null;
-      $(".history-item.selected").removeClass("selected");
-      historyDiffContainer.hide();
-      loadHistory();
-    }
+    setTimeout(() => window.location.reload(), 2000);
   } catch (error) {
     console.error("回滚版本时出错:", error);
     toastr.error(
@@ -983,8 +944,11 @@ async function onReleaseClick() {
   }
 
   const notes = popup.mainInput.value;
-  const version = popup.inputResults.get("qiros_release_version").trim();
-  const title = popup.inputResults.get("qiros_release_title").trim();
+  const versionValue = popup.inputResults.get("qiros_release_version");
+  const titleValue = popup.inputResults.get("qiros_release_title");
+
+  const version = typeof versionValue === "string" ? versionValue.trim() : "";
+  const title = typeof titleValue === "string" ? titleValue.trim() : "";
 
   if (!version || !title) {
     toastr.warning(translations[currentLang]["version_and_title_required"]);
@@ -1045,13 +1009,44 @@ async function onNewBranchClick() {
     toastr.warning(translations[currentLang]["no_repo_linked"]);
     return;
   }
-  const newBranchName = await Popup.show.input(
-    translations[currentLang]["create_new_branch"],
-    translations[currentLang]["enter_branch_name"]
+  const popup = new Popup(
+    `<h3 data-i18n="create_new_branch">${translations[currentLang]["create_new_branch"]}</h3>`,
+    POPUP_TYPE.INPUT,
+    "",
+    {
+      okButton: translations[currentLang]["create"],
+      cancelButton: translations[currentLang]["cancel"],
+      rows: 5,
+      customInputs: [
+        {
+          id: "qiros_new_branch_name",
+          label: translations[currentLang]["enter_branch_name"],
+          type: "text",
+          tooltip: "e.g., feature/new-dialogue",
+        },
+      ],
+    }
   );
+  popup.mainInput.placeholder =
+    translations[currentLang]["initial_commit_readme_placeholder"];
+  popup.mainInput.value = `# ${
+    characters[this_chid]?.data?.name || "New Character"
+  }\n\n`;
+
+  const result = await popup.show();
+
+  if (result === null || result === false) {
+    return; // User cancelled
+  }
+
+  const readmeContent = popup.mainInput.value;
+  const newBranchNameValue = popup.inputResults.get("qiros_new_branch_name");
+  const newBranchName =
+    typeof newBranchNameValue === "string" ? newBranchNameValue.trim() : "";
 
   if (!newBranchName) {
-    return; // User cancelled
+    toastr.warning(translations[currentLang]["enter_branch_name"]);
+    return;
   }
 
   toastr.info(
@@ -1071,7 +1066,8 @@ async function onNewBranchClick() {
       body: JSON.stringify({
         repoUrl: repoUrl,
         newBranchName: newBranchName,
-        baseBranch: branchSelect.val() || null,
+        baseBranchName: branchSelect.val() || null, // 后端变量名是 baseBranchName
+        readmeContent: readmeContent, // 新增：传入README内容
       }),
     });
 
