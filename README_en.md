@@ -9,17 +9,25 @@ This is a frontend extension for [SillyTavern](https://github.com/SillyTavern/Si
 
 This plugin depends on the [Qiros Server Backend](https://github.com/MAX-TAB/qiros-server). Please make sure to complete the installation and configuration of the backend plugin first.
 
+## Core Architecture
+
+This plugin adopts the principle of **separating data from its carrier**, providing a stable, efficient, and collaborative solution for managing character cards:
+
+- **Data (`character.json`)**: The core definition of a character, including description, personality, dialogue examples, and all other textual information. This is the **protagonist** of collaboration and version control, which will be synchronized via Git in the cloud.
+- **Carrier (`card.png`)**: The character's image. It serves as a local "container" for the data. The image itself is **not** uploaded or modified. All cloud data updates are "seamlessly" injected into your local image.
+
 ## Key Features
 
-- **Intuitive User Interface**: Provides a complete operational interface within SillyTavern's extension panel.
-- **Version Control**: Perform core Git operations like "Push", "Pull", "Check for Updates", "View History", and "Revert Version" for your characters.
-- **Branch Management**: Easily create and switch between branches.
-- **Collaboration Workflow**: One-click "Fork" of an upstream repository and guided "Pull Request" creation after pushing updates.
-- **Releases**: Conveniently package the current character as a GitHub Release for easy sharing and distribution.
+- **GitHub OAuth Authentication**: Secure and reliable user authentication flow.
+- **Repository Management**: Create or link remote GitHub repositories from within the plugin.
+- **Versioned Text Data**: Implements push, pull, version history viewing, diff comparison, and version rollback exclusively for the core `character.json` file.
+- **Seamless Local Updates**:
+  - **Pull/Revert**: After fetching a specific version of `character.json` from the cloud, the plugin automatically injects it into your local `card.png` file, enabling seamless updates to existing characters without manual image replacement.
+  - **Push**: Pushes only your local `character.json` data to the repository, without involving the image file at all.
+- **Branch & Release Management**: Supports creating and listing branches, as well as one-click creation of GitHub Releases with `character.json` as an attachment.
+- **Collaboration Workflow**: Supports forking repositories and creating pull requests.
 
 ## Installation Guide
-
-The installation process is somewhat complex and takes about ten minutes.
 
 **Step 1: Enable SillyTavern Server Plugins**
 
@@ -32,25 +40,15 @@ The installation process is somewhat complex and takes about ten minutes.
 
 **Step 2: Install the Qiros Server Backend**
 
-We highly recommend installing via `git clone` to enable the auto-update feature for the plugin.
-
-- **Method 1 (Recommended, requires Git):**
+- **Via `git clone` (Recommended):**
 
   1.  Open a terminal or command prompt.
-  2.  Navigate to your SillyTavern's `plugins` directory, e.g., `cd path/to/SillyTavern/plugins`
-  3.  Run the clone command:
-      ```bash
-      git clone https://github.com/MAX-TAB/qiros-server.git
-      ```
+  2.  Navigate to your SillyTavern's `plugins` directory: `cd path/to/SillyTavern/plugins`
+  3.  Run the clone command: `git clone https://github.com/MAX-TAB/qiros-server.git`
 
-- **Method 2 (Manual Install):**
+- **Manual Install:**
   1.  On the [qiros-server GitHub page](https://github.com/MAX-TAB/qiros-server), click `Code` -> `Download ZIP`.
   2.  Move the extracted folder to your `SillyTavern\plugins` directory.
-
-After installation, proceed with the deployment script:
-
-- **For Windows users**: Run `SillyTavern\plugins\qiros-server\一键部署脚本.bat`.
-- **For mobile or other OS users**: Run `SillyTavern\plugins\qiros-server\一键部署脚本.sh`.
 
 **Step 3: Obtain GitHub OAuth Credentials**
 
