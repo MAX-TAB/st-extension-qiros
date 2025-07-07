@@ -611,7 +611,11 @@ async function proceedWithPull(repoUrl, branch, characterAvatar) {
       throw new Error(
         result.details || translations[currentLang]["pull_failed"]
       );
+
     toastr.success(translations[currentLang]["pull_successful"]);
+    if (result.commitSha) {
+      await saveExtensionData({ commitSha: result.commitSha });
+    }
     setTimeout(() => window.location.reload(), 1000);
   } catch (error) {
     console.error("拉取角色卡时出错:", error);
@@ -834,7 +838,10 @@ async function proceedWithRevert() {
     }
 
     toastr.success(result.message);
-    setTimeout(() => window.location.reload(), 2000);
+    if (result.commitSha) {
+      await saveExtensionData({ commitSha: result.commitSha });
+    }
+    setTimeout(() => window.location.reload(), 1000);
   } catch (error) {
     console.error("回滚版本时出错:", error);
     toastr.error(
@@ -1147,30 +1154,36 @@ async function onForkClick() {
   const extensionData = currentQirosData;
   const upstreamUrl = extensionData?.upstreamUrl;
 
+  // If an upstream URL is already associated with the character, use it directly.
   if (upstreamUrl) {
-    // If URL exists, proceed directly
     await proceedWithFork(upstreamUrl);
-  } else {
-    // If no upstream URL, prompt the user to input one
-    const inputUrl = await Popup.show.input(
-      translations[currentLang]["enter_upstream_repo_url"],
-      translations[currentLang]["upstream_repo_url_placeholder"],
-      ""
-    );
-    if (inputUrl === null) return; // User cancelled
-
-    const newUpstreamUrl = inputUrl.trim();
-    if (
-      !newUpstreamUrl.match(
-        /^https:\/\/github\.com\/[a-zA-Z0-9-_\.]+\/[a-zA-Z0-9-_\.]+(\.git)?$/i
-      )
-    ) {
-      toastr.warning(translations[currentLang]["invalid_repo_url"]);
-      return;
-    }
-    // Proceed with the newly entered URL
-    await proceedWithFork(newUpstreamUrl);
+    return;
   }
+
+  // Otherwise, prompt the user to enter the URL of the repository to fork.
+  const inputUrl = await Popup.show.input(
+    translations[currentLang]["enter_upstream_repo_url"],
+    translations[currentLang]["upstream_repo_url_placeholder"],
+    ""
+  );
+
+  // Exit if the user cancelled the prompt.
+  if (inputUrl === null) {
+    return;
+  }
+
+  const newUpstreamUrl = inputUrl.trim();
+  const githubRepoRegex =
+    /^https:\/\/github\.com\/[a-zA-Z0-9-_\.]+\/[a-zA-Z0-9-_\.]+(\.git)?$/i;
+
+  // Validate the entered URL format.
+  if (!githubRepoRegex.test(newUpstreamUrl)) {
+    toastr.warning(translations[currentLang]["invalid_repo_url"]);
+    return;
+  }
+
+  // Proceed with the fork process using the newly provided URL.
+  await proceedWithFork(newUpstreamUrl);
 }
 
 async function onCreatePullRequestClick() {
